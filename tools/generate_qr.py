@@ -2,7 +2,8 @@
 import os
 import qrcode
 
-BASE = "https://innovvex2026-keelung-catch-go.vercel.app/?vendor="
+BASE = "https://innovvex2026-keelung-catch-go.vercel.app"
+VENDOR_BASE = f"{BASE}/?vendor="
 VENDORS = [
     (1, "杭特電子"),
     (2, "茁思科技"),
@@ -18,8 +19,17 @@ VENDORS = [
 out_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "qr")
 os.makedirs(out_dir, exist_ok=True)
 
+# 首頁 QR
+qr = qrcode.QRCode(version=1, box_size=12, border=2)
+qr.add_data(BASE)
+qr.make(fit=True)
+qr.make_image(fill_color="#1A3E95", back_color="white").save(
+    os.path.join(out_dir, "homepage.png")
+)
+print(f"OK: {os.path.join(out_dir, 'homepage.png')}")
+
 for vid, name in VENDORS:
-    url = f"{BASE}{vid}"
+    url = f"{VENDOR_BASE}{vid}"
     qr = qrcode.QRCode(version=1, box_size=12, border=2)
     qr.add_data(url)
     qr.make(fit=True)
@@ -28,4 +38,4 @@ for vid, name in VENDORS:
     img.save(path)
     print(f"OK: {path}")
 
-print(f"\nGenerated {len(VENDORS)} QR codes in {out_dir}")
+print(f"\nGenerated homepage + {len(VENDORS)} vendor QR codes in {out_dir}")
