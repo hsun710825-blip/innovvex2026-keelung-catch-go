@@ -1,5 +1,6 @@
 """Generate booth QR codes for InnoVEX 2026 Catch & Go."""
 import os
+import re
 import qrcode
 
 BASE = "https://innovvex2026-keelung-catch-go.vercel.app"
@@ -16,26 +17,38 @@ VENDORS = [
     (9, "森田生技"),
 ]
 
-out_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "qr")
+root = os.path.join(os.path.dirname(__file__), "..")
+out_dir = os.path.join(root, "assets", "qr")
+config_path = os.path.join(root, "config.public.js")
 os.makedirs(out_dir, exist_ok=True)
 
-# 首頁 QR
-qr = qrcode.QRCode(version=1, box_size=12, border=2)
-qr.add_data(BASE)
-qr.make(fit=True)
-qr.make_image(fill_color="#1A3E95", back_color="white").save(
-    os.path.join(out_dir, "homepage.png")
-)
-print(f"OK: {os.path.join(out_dir, 'homepage.png')}")
 
-for vid, name in VENDORS:
-    url = f"{VENDOR_BASE}{vid}"
+def read_form_backup_url():
+    if not os.path.exists(config_path):
+        return ""
+    text = open(config_path, encoding="utf-8").read()
+    match = re.search(r"googleFormBackupUrl:\s*['\"]([^'\"]+)['\"]", text)
+    return match.group(1).strip() if match else ""
+
+
+def save_qr(url, filename):
     qr = qrcode.QRCode(version=1, box_size=12, border=2)
     qr.add_data(url)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#1A3E95", back_color="white")
-    path = os.path.join(out_dir, f"vendor_{vid}.png")
-    img.save(path)
+    path = os.path.join(out_dir, filename)
+    qr.make_image(fill_color="#1A3E95", back_color="white").save(path)
     print(f"OK: {path}")
 
-print(f"\nGenerated homepage + {len(VENDORS)} vendor QR codes in {out_dir}")
+
+save_qr(BASE, "homepage.png")
+
+for vid, _name in VENDORS:
+    save_qr(f"{VENDOR_BASE}{vid}", f"vendor_{vid}.png")
+
+form_url = read_form_backup_url()
+if form_url:
+    save_qr(form_url, "form_backup.png")
+else:
+    print("Skip form_backup.png — 請在 config.public.js 設定 googleFormBackupUrl 後再執行")
+
+print(f"\nDone. Output: {out_dir}")

@@ -16,6 +16,19 @@ const FRAME_IMAGE_PATH = './assets/frame.png';
 const VOTE_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbxhjRRNxXDqxBUET2yFe-B-R11n-npFkS3XFhHBxt2bBuwlClJwG2i4AbCOkDnXSd10/exec';
 
+const VOTE_RETRY_MAX = 3;
+const VOTE_RETRY_DELAY_MS = 900;
+const PENDING_VOTE_KEY = 'innoVEX2026_pending_vote_backup';
+
+/** @returns {string} Google 表單備援連結（config.public.js） */
+function getGoogleFormBackupUrl() {
+  return (window.INNOVEX_CONFIG?.googleFormBackupUrl || '').trim();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** 正式 9 家業者資料庫 */
 const VENDORS = [
   {
@@ -223,6 +236,11 @@ const debugButtons = document.getElementById('debug-buttons');
 const votingForm = document.getElementById('voting-form');
 const votingCheckboxes = document.getElementById('voting-checkboxes');
 const voteError = document.getElementById('vote-error');
+const voteBackupPanel = document.getElementById('vote-backup');
+const btnFormBackup = document.getElementById('btn-form-backup');
+const btnShowBackup = document.getElementById('btn-show-backup');
+const formBackupQr = document.getElementById('form-backup-qr');
+const formBackupQrLabel = document.getElementById('form-backup-qr-label');
 
 /* -------------------------------------------------------------------------- */
 /* Haversine 距離（公尺）                                                      */
@@ -774,6 +792,84 @@ async function submitVoteToSheet(payload) {
   }
 }
 
+/** 自動重試送出票選（預設 3 次，間隔遞增） */
+async function submitVoteWithRetry(payload, submitBtn) {
+  let lastError;
+  for (let attempt = 1; attempt <= VOTE_RETRY_MAX; attempt += 1) {
+    try {
+      return await submitVoteToSheet(payload);
+    } catch (err) {
+      lastError = err;
+      if (attempt < VOTE_RETRY_MAX) {
+        submitBtn.textContent = `送出中…（重試 ${attempt + 1}/${VOTE_RETRY_MAX}）`;
+        await sleep(VOTE_RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
+function savePendingVoteBackup(payload) {
+  const names = payload.selectedVendorIds
+    .map((id) => getVendorById(id)?.name || `#${id}`)
+    .join('、');
+  localStorage.setItem(
+    PENDING_VOTE_KEY,
+    JSON.stringify({ ...payload, selectedVendorNames: names }),
+  );
+}
+
+function showVoteBackupPanel(showQr = true) {
+  const formUrl = getGoogleFormBackupUrl();
+  if (!formUrl) {
+    voteBackupPanel.hidden = false;
+    voteBackupPanel.querySelector('.vote-backup__title').textContent =
+      '⚠️ 票選送出失敗，請洽服務台協助（備援表單連結尚未設定）';
+    btnFormBackup.hidden = true;
+    return;
+  }
+
+  btnFormBackup.href = formUrl;
+  btnFormBackup.hidden = false;
+  voteBackupPanel.hidden = false;
+
+  if (showQr && formBackupQr) {
+    formBackupQr.hidden = false;
+    formBackupQrLabel.hidden = false;
+    formBackupQr.onerror = () => {
+      formBackupQr.hidden = true;
+      formBackupQrLabel.hidden = true;
+    };
+  }
+}
+
+function initVotingBackup() {
+  const formUrl = getGoogleFormBackupUrl();
+  if (!formUrl) {
+    btnShowBackup.disabled = true;
+    btnShowBackup.textContent = '備援表單（待設定）';
+    btnShowBackup.style.opacity = '0.5';
+    btnShowBackup.style.cursor = 'not-allowed';
+    return;
+  }
+
+  btnFormBackup.href = formUrl;
+  btnShowBackup.addEventListener('click', () => {
+    savePendingVoteBackup(buildVotePayloadFromForm());
+    showVoteBackupPanel(true);
+    window.open(formUrl, '_blank', 'noopener,noreferrer');
+  });
+}
+
+/** 從表單讀取目前勾選（供備援暫存） */
+function buildVotePayloadFromForm() {
+  const selected = [...votingCheckboxes.querySelectorAll('input[name="vote"]:checked')].map(
+    (el) => Number(el.value),
+  );
+  const other = document.getElementById('vote-other').value.trim();
+  return { selectedVendorIds: selected, other, submittedAt: new Date().toISOString() };
+}
+
 votingForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   voteError.hidden = true;
@@ -789,23 +885,28 @@ votingForm.addEventListener('submit', async (e) => {
     return;
   }
 
-  const payload = { selectedVendorIds: selected, other, submittedAt: new Date().toISOString() };
+  const payload = buildVotePayloadFromForm();
   const submitBtn = votingForm.querySelector('button[type="submit"]');
   const prevLabel = submitBtn.textContent;
   submitBtn.disabled = true;
+  voteBackupPanel.hidden = true;
   submitBtn.textContent = '送出中…';
 
   try {
-    await submitVoteToSheet(payload);
+    await submitVoteWithRetry(payload, submitBtn);
+    localStorage.removeItem(PENDING_VOTE_KEY);
     state.votingDone = true;
     state.votePayload = payload;
     saveState(state);
     showScreen('bonus');
   } catch (err) {
+    savePendingVoteBackup(payload);
     voteError.hidden = false;
-    voteError.textContent = err.message?.includes('fetch')
-      ? '網路連線失敗，請確認網路後再試'
-      : `送出失敗：${err.message || '請稍後再試'}`;
+    const baseMsg = err.message?.includes('fetch')
+      ? '網路連線失敗，已自動重試仍無法送出'
+      : `送出失敗（已重試 ${VOTE_RETRY_MAX} 次）：${err.message || '請稍後再試'}`;
+    voteError.textContent = `${baseMsg}。請改用下方 Google 備援表單。`;
+    showVoteBackupPanel(true);
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = prevLabel;
@@ -854,6 +955,7 @@ async function init() {
   buildDebugPanel();
   renderVendorGrid();
   renderVotingForm();
+  initVotingBackup();
   resolveInitialScreen();
   preloadFrameImage();
   startGeolocationWatch();

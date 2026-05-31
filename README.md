@@ -97,12 +97,53 @@ git push
 
 ---
 
+## 票選備援（500+ 人次建議設定）
+
+App 內建 **自動重試 3 次**；仍失敗時顯示 **Google 表單備援**。
+
+### 步驟 1：建立 Google 表單
+
+1. 前往 [Google 表單](https://forms.google.com) 新增表單，標題：`InnoVEX2026 票選備援`
+2. 新增題目：
+   - **複選框**：「最有感體驗（可選 1～3 項）」— 9 個選項（杭特電子…森田生技）
+   - **簡答**：「其他說明（選填）」
+3. 設定 → 回覆 → 連結試算表（方便匯整）
+4. 按 **傳送** → 複製連結（格式如 `https://docs.google.com/forms/d/e/xxxxx/viewform`）
+
+### 步驟 2：寫入設定並產生 QR
+
+編輯 `config.public.js`：
+
+```javascript
+window.INNOVEX_CONFIG = {
+  googleFormBackupUrl: 'https://docs.google.com/forms/d/e/你的表單ID/viewform',
+};
+```
+
+重新產生備援 QR：
+
+```powershell
+python tools/generate_qr.py
+git add config.public.js assets/qr/form_backup.png
+git commit -m "chore: set vote backup form URL"
+git push
+```
+
+### 步驟 3：展場放置
+
+- 票選頁失敗時會顯示「開啟 Google 備援票選表單」
+- 服務台可貼 `assets/qr/form_backup.png` 供掃描
+- 民眾勾選已暫存本機，填表時請選相同項目
+
+---
+
 ## 專案結構
 
 ```text
 index.html      頁面結構、CDN 引用
 style.css       AR 全螢幕 + 玻璃 UI
-app.js          題庫、三引擎、GPS、票選、拍照
+config.public.js  票選備援 Google 表單 URL
+app.js          題庫、三引擎、GPS、票選（含重試）、拍照
 assets/
   frame.png     拍照相框（唯一）
   vendor_1~9.jpg  答題時展版背景（選填）

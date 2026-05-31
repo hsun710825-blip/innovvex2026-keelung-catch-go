@@ -549,6 +549,66 @@ body {
   margin-bottom: 0.65rem;
 }
 
+.vote-backup {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(210, 10, 17, 0.08);
+  border: 1px solid rgba(210, 10, 17, 0.25);
+}
+
+.vote-backup__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-harbor);
+}
+
+.vote-backup__hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  color: #555;
+  line-height: 1.45;
+}
+
+.vote-backup__qr {
+  display: block;
+  width: 140px;
+  height: 140px;
+  margin: 0.65rem auto 0.25rem;
+}
+
+.vote-backup__qr-label {
+  text-align: center;
+  font-size: 0.72rem;
+  color: #666;
+  margin: 0;
+}
+
+.voting-backup-note {
+  margin-top: 0.85rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-ocean);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.btn--harbor {
+  background: var(--color-harbor);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(210, 10, 17, 0.3);
+}
+
 .bonus-title {
   text-align: center;
   font-size: 1.15rem;
