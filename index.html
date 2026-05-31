@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1A3E95" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="InnoVEX 2026 智匯基隆 Catch & Go — AR 互動導覽與智能拍照" />
+  <title>InnoVEX 2026 智匯基隆 Catch & Go</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ocean: '#1A3E95',
+            mountain: '#008D36',
+            harbor: '#D20A11',
+            sunshine: '#FFC608',
+            fontblack: '#000000',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="font-sans text-fontblack antialiased">
+  <!-- AR 視訊底層 (z-index: 0) — html5-qrcode 注入 video -->
+  <div id="ar-scanner" class="ar-scanner" aria-hidden="true"></div>
+  <div id="ar-fallback" class="ar-fallback" hidden>
+    <p><i class="fa-solid fa-camera"></i> 請允許相機權限以啟動 AR 導覽</p>
+  </div>
+
+  <!-- 廠商展版色調遮罩（答題時） -->
+  <div id="vendor-bg" class="vendor-bg-layer" aria-hidden="true"></div>
+
+  <!-- Debug 面板 -->
+  <aside id="debug-panel" class="debug-panel glass-card" aria-label="開發者測試模式">
+    <button type="button" id="debug-toggle" class="debug-panel__toggle" aria-expanded="false" aria-controls="debug-body">
+      <i class="fa-solid fa-bug"></i>
+      <span>Debug</span>
+      <i class="fa-solid fa-chevron-down debug-panel__chevron"></i>
+    </button>
+    <div id="debug-body" class="debug-panel__body" hidden>
+      <p class="debug-panel__hint">模擬解鎖：QR / GPS / 手動</p>
+      <div id="debug-buttons" class="debug-panel__grid"></div>
+      <p id="geo-status" class="debug-panel__geo">GPS：等待定位…</p>
+      <p id="ar-status" class="debug-panel__geo">AR：初始化中…</p>
+    </div>
+  </aside>
+
+  <!-- 懸浮 UI 層 (z-index: 10) -->
+  <div id="ui-layer" class="ui-layer">
+    <main id="app" class="app-container">
+      <section id="screen-home" class="screen screen--active" data-screen="home">
+        <header class="hero glass-card">
+          <div class="hero__visual" role="img" aria-label="InnoVEX 2026 智匯基隆主視覺"></div>
+          <h1 class="hero__title">
+            <span class="hero__badge">InnoVEX 2026</span>
+            智匯基隆 Catch &amp; Go
+          </h1>
+          <p class="hero__subtitle">AR 掃描 · GPS 感應 · 集滿九關兌換山海好禮</p>
+        </header>
+
+        <div class="progress-bar glass-card">
+          <div class="progress-bar__fill" id="progress-fill"></div>
+          <p class="progress-bar__text">闖關進度：<strong id="progress-text">0/9</strong></p>
+        </div>
+
+        <div id="vendor-grid" class="vendor-grid" aria-label="廠商闖關列表"></div>
+
+        <p class="home-tip glass-card">
+          <i class="fa-solid fa-qrcode text-ocean"></i> 掃描攤位 QR<br />
+          <i class="fa-solid fa-location-dot text-mountain"></i> 靠近 5 公尺自動解鎖<br />
+          <i class="fa-solid fa-camera text-harbor"></i> AR 鏡頭對準 vendor_1～9
+        </p>
+      </section>
+
+      <section id="screen-success" class="screen" data-screen="success" hidden>
+        <div class="success-card glass-card">
+          <div class="success-icon" aria-hidden="true">🎉</div>
+          <h2 class="success-title">恭喜完成！</h2>
+          <p class="success-subtitle">成功解鎖基隆創新 DNA</p>
+          <p class="success-desc">
+            請持本畫面至服務台，兌換限量山海基隆實用周邊乙份（涼感毛巾、手機擦拭布貼、文創小方巾 三選一）
+          </p>
+          <button type="button" id="btn-continue-explore" class="btn btn--primary btn--lg">
+            繼續探索基隆智慧科技
+            <i class="fa-solid fa-arrow-right ml-2"></i>
+          </button>
+        </div>
+      </section>
+
+      <section id="screen-voting" class="screen" data-screen="voting" hidden>
+        <div class="glass-card voting-card">
+          <h2 class="voting-title">🌟 本次最有感體驗票選 🌟</h2>
+          <p class="voting-hint">請勾選 1～3 項最有感的廠商體驗</p>
+          <form id="voting-form" class="voting-form">
+            <fieldset id="voting-checkboxes" class="voting-checkboxes"></fieldset>
+            <label class="voting-other">
+              <span>其他：</span>
+              <input type="text" id="vote-other" name="voteOther" class="glass-input" placeholder="請簡述" maxlength="100" />
+            </label>
+            <p id="vote-error" class="form-error" role="alert" hidden></p>
+            <button type="submit" id="btn-submit-vote" class="btn btn--ocean btn--block">送出票選結果</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="screen-bonus" class="screen" data-screen="bonus" hidden>
+        <div class="glass-card bonus-card">
+          <h2 class="bonus-title">📸 加碼隱藏版驚喜</h2>
+          <p class="bonus-desc">
+            將完成畫面截圖上傳 FB/IG 公開貼文，標註「潮嚮‧山海基隆」粉專，並 Hashtag
+            <strong>#InnoVEX2026基隆館創新驚喜體驗</strong>，即可兌換神秘好禮！
+          </p>
+          <p class="bonus-warning">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            如已完成過拍照打卡任務者，恕無法重複兌換
+          </p>
+          <button type="button" id="btn-back-home" class="btn btn--outline btn--block mt-6">
+            <i class="fa-solid fa-house"></i> 返回首頁
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- 相機控制列（首頁顯示） -->
+    <div id="camera-controls" class="camera-controls">
+      <button type="button" id="btn-flip-camera" class="camera-btn" aria-label="翻轉鏡頭">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+      <button type="button" id="btn-shutter" class="camera-btn camera-btn--shutter" aria-label="拍照">
+        <i class="fa-solid fa-camera"></i>
+      </button>
+      <div class="camera-btn camera-btn--placeholder" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <!-- Screen 2：答題 Modal -->
+  <dialog id="quiz-modal" class="quiz-modal" aria-labelledby="quiz-vendor-name">
+    <div class="quiz-modal__inner glass-card">
+      <button type="button" id="quiz-close" class="quiz-modal__close" aria-label="關閉">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <p class="quiz-modal__tag" id="quiz-vendor-topic"></p>
+      <h3 id="quiz-vendor-name" class="quiz-modal__title"></h3>
+      <p id="quiz-question" class="quiz-modal__question"></p>
+
+      <div id="quiz-text-area" class="quiz-input-area">
+        <input type="text" id="quiz-answer-input" class="glass-input" placeholder="請輸入答案" autocomplete="off" />
+      </div>
+
+      <div id="quiz-mcq-area" class="quiz-mcq-area" hidden>
+        <label class="mcq-option"><input type="radio" name="mcq" value="A" /> A. 精密機械</label>
+        <label class="mcq-option"><input type="radio" name="mcq" value="B" /> B. 紡織技術</label>
+        <label class="mcq-option"><input type="radio" name="mcq" value="C" /> C. 食品加工</label>
+      </div>
+
+      <div class="quiz-actions">
+        <button type="button" id="btn-hint" class="btn btn--hint"><span>提示</span> 💡</button>
+        <button type="button" id="btn-submit-answer" class="btn btn--primary">送出答案</button>
+      </div>
+
+      <p id="quiz-feedback" class="quiz-feedback" role="status" hidden></p>
+
+      <div id="hint-toast" class="hint-toast glass-card" hidden>
+        <p id="hint-text"></p>
+        <button type="button" id="hint-close" class="btn btn--sm">知道了</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 拍照預覽 Modal -->
+  <dialog id="photo-modal" class="photo-modal">
+    <div class="photo-modal__inner glass-card">
+      <button type="button" id="photo-close" class="quiz-modal__close" aria-label="關閉">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <h3 class="photo-modal__title">📸 基隆 InnoVEX 專屬紀念照</h3>
+      <img id="photo-preview" class="photo-preview" alt="合成照片預覽" />
+      <a id="btn-download-photo" class="btn btn--ocean btn--block" download="innoVEX2026-keelung.jpg">下載照片</a>
+    </div>
+  </dialog>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

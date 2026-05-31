@@ -1,0 +1,737 @@
+/* ==========================================================================
+   InnoVEX 2026 AR 互動導覽版
+   配色：海洋藍 #1A3E95 | 山景綠 #008D36 | 港灣紅 #D20A11 | 陽光黃 #FFC608
+   ========================================================================== */
+
+:root {
+  --color-ocean: #1a3e95;
+  --color-mountain: #008d36;
+  --color-harbor: #d20a11;
+  --color-sunshine: #ffc608;
+  --color-black: #000000;
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px rgba(26, 62, 149, 0.15);
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --z-ar: 0;
+  --z-ui: 10;
+  --z-debug: 100;
+  --z-modal: 50;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: #111;
+  color: var(--color-black);
+}
+
+/* ---------- AR 視訊全螢幕底層 ---------- */
+.ar-scanner {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-ar);
+  overflow: hidden;
+  background: #1a1a2e;
+}
+
+.ar-scanner video {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  object-fit: cover !important;
+}
+
+/* 隱藏 html5-qrcode 掃描框遮罩，保留純 AR 視野 */
+.ar-scanner #qr-shaded-region,
+.ar-scanner canvas {
+  display: none !important;
+}
+
+.ar-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-ar) + 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(160deg, #1a3e95 0%, #111 100%);
+  color: #fff;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.ar-fallback i {
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* 廠商展版色調遮罩（答題時疊加在 AR 上） */
+.vendor-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-ar) + 2);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+
+.vendor-bg-layer.is-active {
+  opacity: 0.45;
+}
+
+.vendor-bg-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.55));
+}
+
+/* ---------- 懸浮 UI 層 ---------- */
+.ui-layer {
+  position: relative;
+  z-index: var(--z-ui);
+  min-height: 100dvh;
+  padding-top: calc(var(--safe-top) + 2.5rem);
+  padding-bottom: calc(var(--safe-bottom) + 5.5rem);
+  pointer-events: none;
+}
+
+.ui-layer > * {
+  pointer-events: auto;
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+}
+
+.app-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 1rem 1rem;
+}
+
+/* ---------- Debug 面板 ---------- */
+.debug-panel {
+  position: fixed;
+  top: calc(var(--safe-top) + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-debug);
+  width: min(94vw, 460px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.debug-panel__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ocean);
+  cursor: pointer;
+}
+
+.debug-panel__chevron {
+  transition: transform 0.2s ease;
+  font-size: 0.65rem;
+}
+
+.debug-panel.is-open .debug-panel__chevron {
+  transform: rotate(180deg);
+}
+
+.debug-panel__body {
+  padding: 0 0.75rem 0.65rem;
+  border-top: 1px solid rgba(26, 62, 149, 0.1);
+}
+
+.debug-panel__hint,
+.debug-panel__geo {
+  margin: 0.35rem 0;
+  font-size: 0.65rem;
+  color: #444;
+  line-height: 1.35;
+}
+
+.debug-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.debug-panel__grid button {
+  padding: 0.35rem 0.25rem;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(26, 62, 149, 0.25);
+  background: rgba(26, 62, 149, 0.08);
+  color: var(--color-ocean);
+  cursor: pointer;
+}
+
+/* ---------- Screen 切換 ---------- */
+.screen {
+  display: none;
+  animation: fadeIn 0.35s ease;
+}
+
+.screen.screen--active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  margin-top: 0.25rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hero__visual {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: url("主視覺.jpg") center / cover no-repeat;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.hero__title {
+  margin: 0;
+  padding: 0.85rem 1rem 0.2rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--color-ocean);
+}
+
+.hero__badge {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-harbor);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.2rem;
+}
+
+.hero__subtitle {
+  margin: 0;
+  padding: 0 1rem 0.85rem;
+  font-size: 0.8rem;
+  color: #333;
+}
+
+/* ---------- 進度條 ---------- */
+.progress-bar {
+  position: relative;
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(0, 141, 54, 0.25), rgba(0, 141, 54, 0.4));
+  border-radius: var(--radius-lg);
+  transition: width 0.4s ease;
+}
+
+.progress-bar__text {
+  position: relative;
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.progress-bar__text strong {
+  color: var(--color-mountain);
+  font-size: 1.05rem;
+}
+
+/* ---------- 廠商網格 ---------- */
+.vendor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+}
+
+.vendor-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 5rem;
+  padding: 0.45rem 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.15s ease;
+}
+
+.vendor-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.vendor-btn__num {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-ocean);
+}
+
+.vendor-btn__name {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.vendor-btn--locked {
+  opacity: 0.6;
+}
+
+.vendor-btn--done {
+  border-color: rgba(0, 141, 54, 0.5);
+  background: rgba(0, 141, 54, 0.18);
+}
+
+.vendor-btn--done .vendor-btn__icon {
+  color: var(--color-mountain);
+}
+
+.home-tip {
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.65;
+  color: #333;
+}
+
+.home-tip i {
+  margin-right: 0.25rem;
+}
+
+/* ---------- 相機控制列 ---------- */
+.camera-controls {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: calc(var(--z-ui) + 5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.75rem;
+  pointer-events: auto;
+}
+
+.camera-controls.is-hidden {
+  display: none;
+}
+
+.camera-btn {
+  width: 3rem;
+  height: 3rem;
+  border: none;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  color: var(--color-ocean);
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-btn--shutter {
+  width: 4.25rem;
+  height: 4.25rem;
+  font-size: 1.35rem;
+  background: linear-gradient(135deg, var(--color-ocean), #2a5cc0);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.camera-btn--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.camera-btn:active {
+  transform: scale(0.94);
+}
+
+/* ---------- 按鈕 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  text-decoration: none;
+}
+
+.btn:active { transform: scale(0.98); }
+
+.btn--primary {
+  background: linear-gradient(135deg, var(--color-mountain), #00a844);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 141, 54, 0.35);
+}
+
+.btn--ocean {
+  background: var(--color-ocean);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(26, 62, 149, 0.35);
+}
+
+.btn--hint {
+  background: var(--color-sunshine);
+  color: var(--color-black);
+}
+
+.btn--outline {
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px solid var(--color-ocean);
+  color: var(--color-ocean);
+}
+
+.btn--block { width: 100%; }
+.btn--lg { padding: 0.85rem 1.5rem; font-size: 1rem; }
+.btn--sm { padding: 0.4rem 0.85rem; font-size: 0.8rem; margin-top: 0.5rem; }
+
+/* ---------- 成功 / 票選 / 加碼 ---------- */
+.success-card {
+  margin-top: 1.5rem;
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.success-icon {
+  font-size: 3.5rem;
+  animation: bounce 1s ease infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.success-title {
+  margin: 0.5rem 0 0;
+  font-size: 1.5rem;
+  color: var(--color-mountain);
+}
+
+.success-subtitle {
+  margin: 0.25rem 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.success-desc {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.voting-card,
+.bonus-card {
+  margin-top: 0.75rem;
+  padding: 1.25rem;
+}
+
+.voting-title {
+  text-align: center;
+  font-size: 1.15rem;
+  margin: 0 0 0.5rem;
+  color: var(--color-ocean);
+}
+
+.voting-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #555;
+  margin-bottom: 0.85rem;
+}
+
+.voting-checkboxes {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vote-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(26, 62, 149, 0.12);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.vote-option input {
+  margin-top: 0.12rem;
+  accent-color: var(--color-ocean);
+}
+
+.voting-other {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.85rem 0;
+  font-size: 0.88rem;
+}
+
+.voting-other .glass-input { flex: 1; }
+
+.form-error {
+  color: var(--color-harbor);
+  font-size: 0.82rem;
+  margin-bottom: 0.65rem;
+}
+
+.bonus-title {
+  text-align: center;
+  font-size: 1.15rem;
+  color: var(--color-harbor);
+  margin: 0 0 0.85rem;
+}
+
+.bonus-desc {
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.bonus-warning {
+  margin-top: 1rem;
+  padding: 0.65rem;
+  border-radius: var(--radius-md);
+  background: rgba(210, 10, 17, 0.1);
+  color: var(--color-harbor);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* ---------- 答題 Modal ---------- */
+.quiz-modal,
+.photo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.quiz-modal::backdrop,
+.photo-modal::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.quiz-modal__inner,
+.photo-modal__inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 420px);
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 1.5rem;
+}
+
+.quiz-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.quiz-modal__tag {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  color: var(--color-ocean);
+  font-weight: 600;
+}
+
+.quiz-modal__title {
+  margin: 0 0 0.65rem;
+  padding-right: 2rem;
+  font-size: 1.1rem;
+}
+
+.quiz-modal__question {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin-bottom: 0.85rem;
+}
+
+.glass-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(26, 62, 149, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 1rem;
+  outline: none;
+}
+
+.glass-input:focus {
+  border-color: var(--color-ocean);
+  box-shadow: 0 0 0 3px rgba(26, 62, 149, 0.12);
+}
+
+.quiz-mcq-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.mcq-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.mcq-option:has(input:checked) {
+  border-color: var(--color-ocean);
+  background: rgba(26, 62, 149, 0.1);
+}
+
+.quiz-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.quiz-actions .btn--primary { flex: 1; }
+
+.quiz-feedback {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.quiz-feedback.is-wrong {
+  background: rgba(210, 10, 17, 0.12);
+  color: var(--color-harbor);
+}
+
+.quiz-feedback.is-correct {
+  background: rgba(0, 141, 54, 0.12);
+  color: var(--color-mountain);
+}
+
+.hint-toast {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  padding: 0.85rem;
+  z-index: 2;
+  animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- 拍照預覽 Modal ---------- */
+.photo-modal__title {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  text-align: center;
+  color: var(--color-ocean);
+}
+
+.photo-preview {
+  width: 100%;
+  border-radius: var(--radius-md);
+  margin-bottom: 0.85rem;
+  display: block;
+}
+
+@media (min-width: 481px) {
+  .vendor-btn { min-height: 5.5rem; }
+}
